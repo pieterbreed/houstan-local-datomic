@@ -2,7 +2,8 @@
 
 (set-env! :dependencies '[[pieterbreed/tappit "0.9.8"]
                           [me.raynes/conch "0.8.0"]
-                          [environ "1.0.3"]])
+                          [environ "1.0.3"]
+                          [yoostan-lib.utils :as utils]])
 
 
 ;; ----------------------------------------
@@ -29,41 +30,84 @@
 ;; - ansible
 ;; - vagrant
 
-(defn cmd-is-available
-  "Tests whether a UNIX shell command can be found."
-  [appname]
-  (conch/with-programs [which]
-    (let [res (which appname {:throw false
-                              :verbose true})]
-      (= 0 (deref (:exit-code res))))))
-
-(defn version-of-app-found
-  "Runs <command> <-version> and tests the output against a regex"
-  [r cmd p]
-  (conch/let-programs
-      [c cmd]
-
-    (let [res (c p {:throw false
-                    :verbose true})
-          exit-code (deref (:exit-code res))]
-      
-      (if (not= 0 exit-code) false
-          (boolean (re-find r (:stdout res)))))))
-
-
 (with-tap!
+
+  (def houstan-dir (some-> :houstan environ.core/env clojure.java.io/file))
+  (defn diag-lines [ll] (->> ll (map diag!) dorun))
+
+  ;; ----------------------------------------
+  
+  (diag-lines ["# ACCEPT"
+               "An environment acceptance tool for `houstan`."])
+
+  ;; ----------------------------------------
+  
   ;; vagrant testing
-  (when (ok! (cmd-is-available "vagrant")
-             "vagrant-is-installed")
-    (ok! (version-of-app-found #"Vagrant 1\.8\.."
-                               "vagrant" "-v")
+  (if (not (ok! (utils/cmd-is-available "vagrant")
+                "vagrant-is-installed"))
+    (do
+      (bail-out! "Vagrant has to be installed.")
+      (System/exit 1))
+    (ok! (utils/version-of-app-found #"Vagrant 1\.8\.."
+                                     "vagrant" "-v")
          "correct-version-of-vagrant"
          :diag "I only tested with 1.8.5"))
 
   ;; ansible testing
-  (when (ok! (cmd-is-available "ansible")
-             "ansible-is-installed")
-    (ok! (version-of-app-found #"ansible 2\.1\..\.."
-                               "ansible" "--version")
+  (if (not (ok! (utils/cmd-is-available "ansible")
+                "ansible-is-installed"))
+    (do
+      (bail-out! "Ansible has to be installed.")
+      (System/exit 1))
+    (ok! (utils/version-of-app-found #"ansible 2\.1\..\.."
+                                     "ansible" "--version")
          "correct-version-of-ansible"
-         :diag "I only tested with ansible > 2.1.0.0")))
+         :diag "I only tested with ansible > 2.1.x.x"))
+
+  (if (not (ok! (utils/cmd-is-available "git")
+                "git-is-installed"))
+    (do
+      (bail-out! "Git has to be installed.")
+      (System/exit 1))
+    (ok! (utils/version-of-app-found #"git version 2\.7\.."
+                                     "git" "version")
+         "correct-version-of-git"
+         :diag "I only tested with git > 2.7.x"))
+
+  ;; ----------------------------------------
+
+  (me.raynes.conch/programs git vagrant ansible)
+
+  ;; ----------------------------------------
+
+  ;; houstan variable
+  (if (not (ok! (and houstan-dir
+                     (.exists houstan-dir))
+                "houstan-var-points-to-dir"))
+    (do (diag-lines
+         ["## houstan-var-points-to-dir"
+          " - You have to set the `HOUSTAN` environment variable."
+          " - `HOUSTAN` env-var must point to a dir you may write to."
+          " - It separates one `houstan` environment from another."])
+        (bail-out! "HOUSTAN variable has to be set.")
+        (System/exit 1)))
+
+  ;; ----------------------------------------
+
+  (def houstan-library-git
+    (or (environ.core/env :houstan-library-git)
+        "https://github.com/pieterbreed/houstan-library-local"))
+  (diag-lines ["You can override the houstan-library-get repository using"
+               "HOUSTAN_LIBRARY_GIT environment variable."
+               "Currently set to: "
+               houstan-library-git])
+
+  (git "clone" "--recursive" houstan-library-git
+       (->> (clojure.java.io/file houstan-dir
+                                  "library")))
+  (ok! ok "cloned-houstan-library")
+
+  ;; ----------------------------------------
+
+
+  )
