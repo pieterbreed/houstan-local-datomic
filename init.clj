@@ -64,6 +64,7 @@
          "correct-version-of-ansible"
          :diag "I only tested with ansible > 2.1.x.x"))
 
+  ;; git testing
   (if (not (ok! (utils/cmd-is-available "git")
                 "git-is-installed"))
     (do
@@ -76,7 +77,7 @@
 
   ;; ----------------------------------------
 
-  (me.raynes.conch/programs git vagrant ansible)
+  (me.raynes.conch/programs git)
 
   ;; ----------------------------------------
 
@@ -97,14 +98,14 @@
   (def houstan-library-git
     (or (environ.core/env :houstan-library-git)
         "https://github.com/pieterbreed/houstan-library-local"))
-  (diag-lines ["You can override the houstan-library-get repository using"
+  (diag-lines ["You can override the houstan-library-git repository using"
                "HOUSTAN_LIBRARY_GIT environment variable."
                "Currently set to: "
                houstan-library-git])
 
-  (git "clone" "--recursive" houstan-library-git
-       (->> (clojure.java.io/file houstan-dir
-                                  "library")))
+  (git "clone" "--recursive"
+       houstan-library-git
+       (clojure.java.io/file houstan-dir "library"))
   (ok! ok "cloned-houstan-library")
 
   ;; ----------------------------------------
