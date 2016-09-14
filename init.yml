@@ -1,0 +1,103 @@
+---
+- hosts: datomic-transactors
+  vars:
+    datomic_dist: "{{ lookup('env', 'DIST_FOLDER') }}"
+    datomic_user: 'datomic'
+    datomic_version: "{{ lookup('env', 'DATOMIC_VERSION') }}"
+    datomic_name_part: 'datomic-pro-{{ datomic_version }}'
+    datomic_filename: '{{ datomic_name_part }}.zip'
+    datomic_distribution_path: '/opt/datomic'
+    datomic_extract_path: '{{ datomic_distribution_path }}/{{ datomic_version }}'
+    datomic_current_path: '{{ datomic_distribution_path }}/current'
+    datomic_config_path: '/etc/datomic'
+    datomic_config_file: '{{ datomic_config_path }}/datomic-transactor.properties'
+    datomic_data_path: '/var/lib/datomic'
+    datomic_log_path: '/var/log/datomic'
+    datomic_pid_path: '/var/run/datomic'
+    datomic_pid_file: '{{ datomic_pid_path }}/datomic_transactor.pid'
+    datomic_systemd_service_file: '/etc/systemd/system/datomic.service'
+
+  tasks:
+    - name: Set up the service account
+      become: true
+      user:
+        name: '{{ datomic_user }}'
+        shell: '/bin/false'
+        state: present
+        createhome: no
+        group: 'nogroup'
+
+    - name: Create config folder
+      become: true
+      file:
+        state: 'directory'
+        dest: '{{ datomic_config_path }}'
+        mode: 0755
+
+    - name: Create other run-time folders
+      become: true
+      file:
+        state: 'directory'
+        dest: '{{ item }}'
+        mode: 0755
+        owner: '{{ datomic_user }}'
+      with_items:
+        - '{{ datomic_log_path }}'
+        - '{{ datomic_pid_path }}'
+        - '{{ datomic_data_path }}'
+
+    - name: Create a folder to copy datomic distributions to
+      become: true
+      file:
+        path: '{{ datomic_distribution_path }}'
+        state: directory
+        mode: 0755
+    
+    - name: Create the extract path
+      become: yes
+      file:
+        dest: '{{ datomic_extract_path }}'
+        state: directory
+
+    - name: Copy the datomic distribution over
+      become: yes
+      unarchive:
+        creates: '{{ datomic_extract_path }}/{{ datomic_name_part}}'
+        src: '{{ datomic_dist }}/{{ datomic_filename }}'
+        dest: '{{ datomic_extract_path }}'
+
+    - name: Set the _active_ symlink
+      become: yes
+      file:
+        src: '{{ datomic_extract_path }}/{{ datomic_name_part }}'
+        dest: '{{ datomic_current_path }}'
+        state: link
+      notify:
+        - Restart datomic
+
+    - name: Configure the transactor
+      become: yes
+      template:
+        src: 'java.properties.j2'
+        dest: '{{ datomic_config_file }}'
+      notify:
+        - Restart datomic
+
+    - name: Configure the datomic system service
+      become: yes
+      template:
+        src: 'datomic.service.j2'
+        dest: '{{ datomic_systemd_service_file }}'
+      notify:
+        - Reload systemd
+        - Restart datomic
+  handlers:
+    - name: Reload systemd
+      become: yes
+      command: '/bin/systemctl daemon-reload'
+      
+    - name: Restart datomic
+      become: yes
+      service:
+        name: datomic
+        state: restarted
