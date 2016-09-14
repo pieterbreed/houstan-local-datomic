@@ -30,7 +30,7 @@
                     "object-cache-max" "128m"
                     "data-dir" "/var/lib/datomic"
                     "log-dir" "/var/log/datomic"
-                    "pid-file" "/var/run/datomic"}})
+                    "pid-file" "/var/run/datomic/datomic_transactor.pid"}})
     (yinv/target->group-> $ vagrant-host "datomic-transactors")
     (yinv/inv->ansible--list $)
     (json/write-str $)
