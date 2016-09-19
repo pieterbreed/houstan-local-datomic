@@ -24,110 +24,72 @@
 (require '[me.raynes.conch.low-level :as sh])
 (require '[yoostan-lib.utils :as utils])
 
-;; This script will help the user figure out how to
-;; configure the environment for this system to get
-;; up and running.
+;; ----------------------------------------
 
-;; we will need the following on the host system
-;; - ansible
-;; - vagrant
+(let [bsf (-> boot.core/*boot-script* clojure.java.io/file)]
+  (def work-dir
+    (-> (or (if (.isAbsolute bsf) bsf)
+            (clojure.java.io/file (System/getProperty "user.dir")
+                                  bsf))
+        .getParentFile
+        .getCanonicalPath)))
+
+
+;; ----------------------------------------
 
 (with-tap!
 
-  (def houstan-dir (some-> :houstan environ.core/env clojure.java.io/file))
   (defn diag-lines [ll] (->> ll (map diag!) dorun))
 
   ;; ----------------------------------------
-  
-  (diag-lines ["# ACCEPT"
-               "An environment acceptance tool for `houstan`."])
 
-  ;; ----------------------------------------
-  
-  ;; vagrant testing
-  (if (not (ok! (utils/cmd-is-available "vagrant")
-                "vagrant-is-installed"))
-    (do
-      (bail-out! "Vagrant has to be installed.")
-      (System/exit 1))
-    (ok! (utils/version-of-app-found #"Vagrant 1\.8\.."
-                                     "vagrant" "-v")
-         "correct-version-of-vagrant"
-         :diag "I only tested with 1.8.5"))
+  (diag! (str "working directory at: " work-dir))
 
   ;; ansible testing
-  (if (not (ok! (utils/cmd-is-available "ansible")
+  (if (not (ok! (utils/cmd-is-available "ansible-playbook")
                 "ansible-is-installed"))
     (do
-      (bail-out! "Ansible has to be installed.")
+      (bail-out! "Ansible (ansible-playbook) has to be installed.")
       (System/exit 1))
-    (ok! (utils/version-of-app-found #"ansible 2\.1\..\.."
-                                     "ansible" "--version")
+    (ok! (utils/version-of-app-found #"ansible-playbook 2\.1\..\.."
+                                     "ansible-playbook" "--version")
          "correct-version-of-ansible"
          :diag "I only tested with ansible > 2.1.x.x"))
 
-  ;; git testing
-  (if (not (ok! (utils/cmd-is-available "git")
-                "git-is-installed"))
+  ;; ----------------------------------------
+
+  ;; checking that the environment variables have been set properly
+  (if (not (ok! (some-> :datomic-license-key
+                        environ.core/env)
+                "env-variable-datomic-license-key-is-set"
+                :diag "You get and use your personal license from my.datomic.com"))
     (do
-      (bail-out! "Git has to be installed.")
-      (System/exit 1))
-    (ok! (utils/version-of-app-found #"git version 2\.7\.."
-                                     "git" "version")
-         "correct-version-of-git"
-         :diag "I only tested with git > 2.7.x"))
+      (bail-out! "DATOMIC_LICENSE_KEY env variable not set")
+      (System/exit 1)))
 
   ;; ----------------------------------------
 
-  (conch/programs git)
+  (diag! "Running ansible-playbook ... init.yml")
+  (conch/with-programs [ansible-playbook]
+    (let [playbook-folder work-dir
+          ansible-proc (ansible-playbook "-i" (.getCanonicalPath
+                                               (clojure.java.io/file playbook-folder
+                                                                     "inventory.clj"))
+                                         (.getCanonicalPath
+                                          (clojure.java.io/file playbook-folder
+                                                                "init.yml"))
+                                         {:seq true
+                                          :throw false
+                                          :verbose true})]
+      (diag-lines (-> ansible-proc :proc :out))
+      (if (not (=! 0 (-> ansible-proc :exit-code deref)
+                   "ansible-playbook-init-succeeded"))
+        (do 
+          (bail-out! "Ansible init playbook failed")
+          (System/exit 1)))))
 
-  ;; ----------------------------------------
 
-  ;; houstan variable
-  (if (not (ok! (and houstan-dir
-                     (.exists houstan-dir))
-                "houstan-var-points-to-dir"))
-    (do (diag-lines
-         ["## houstan-var-points-to-dir"
-          " - You have to set the `HOUSTAN` environment variable."
-          " - `HOUSTAN` env-var must point to a dir you may write to."
-          " - It separates one `houstan` environment from another."])
-        (bail-out! "HOUSTAN variable has to be set.")
-        (System/exit 1)))
 
-  ;; ----------------------------------------
 
-  (def houstan-library-git
-    (or (environ.core/env :houstan-library-git)
-        (do
-          (diag-lines ["You can override the HOUSTAN-LIBRARY-GIT repository using"
-                       "HOUSTAN_LIBRARY_GIT environment variable."])
-          "https://github.com/pieterbreed/houstan-library-local")))
-  
 
-  (def houstan-library-git-branch
-    (or (environ.core/env :houstan-library-git-branch)
-        (do
-          (diag-lines ["You can override the HOUSTAN-LIBRARY-GIT _branch_"
-                       "by specifying the HOUSTAN_LIBRARY_GIT_BRANCH"
-                       "environment variable."])
-          "0.0.2")))
-
-  (git "clone" "--recursive"
-       "-b" houstan-library-git-branch
-       houstan-library-git
-       (clojure.java.io/file houstan-dir "library"))
-  (ok! ok "cloned-houstan-library")
-
-  ;; ----------------------------------------
-
-  (def vagrant-init-script-file (clojure.java.io/file houstan-dir "library" "houstan-local-vagrant" "init.clj"))
-  (diag! (str "looking for vagrant-init-script at " (.getCanonicalPath vagrant-init-script-file)))
-  (ok! (.exists vagrant-init-script-file)
-       "vagrant-init-script-exists"
-       :diag "If this fails, you have a broken library.")
-
-  (diag! "Calling vagrant init script. This might take some time...")
-  (conch/let-programs
-      [init (.getAbsolutePath vagrant-init-script-file)]
-    (init)))
+  )
