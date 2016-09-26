@@ -34,7 +34,6 @@
         .getParentFile
         .getCanonicalPath)))
 
-
 ;; ----------------------------------------
 
 (with-tap!
@@ -58,7 +57,7 @@
 
   ;; ----------------------------------------
 
-  (diag! "Running ansible-playbook ... init.yml")
+  (diag! "Running ansible-playbook ... start.yml")
   (conch/with-programs [ansible-playbook]
     (let [playbook-folder work-dir
           ansible-proc (ansible-playbook "-i" (.getCanonicalPath

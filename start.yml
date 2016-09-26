@@ -1,9 +1,9 @@
 ---
 - hosts: datomic-transactors
   tasks:
-    name: Restart datomic
-    become: yes
-    service:
-      name: datomic
-      state: restarted
+    - name: Restart datomic
+      become: yes
+      service:
+        name: datomic
+        state: restarted
       
