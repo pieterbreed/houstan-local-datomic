@@ -72,16 +72,12 @@
         src: '{{ datomic_extract_path }}/{{ datomic_name_part }}'
         dest: '{{ datomic_current_path }}'
         state: link
-      notify:
-        - Restart datomic
 
     - name: Configure the transactor
       become: yes
       template:
         src: 'java.properties.j2'
         dest: '{{ datomic_config_file }}'
-      notify:
-        - Restart datomic
 
     - name: Configure the datomic system service
       become: yes
@@ -90,14 +86,9 @@
         dest: '{{ datomic_systemd_service_file }}'
       notify:
         - Reload systemd
-        - Restart datomic
+
   handlers:
     - name: Reload systemd
       become: yes
       command: '/bin/systemctl daemon-reload'
       
-    - name: Restart datomic
-      become: yes
-      service:
-        name: datomic
-        state: restarted
