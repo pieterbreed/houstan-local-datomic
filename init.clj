@@ -3,7 +3,7 @@
 (set-env! :dependencies '[[pieterbreed/tappit "0.9.8"]
                           [me.raynes/conch "0.8.0"]
                           [environ "1.0.3"]
-                          [pieterbreed/yoostan-lib "0.0.1-SNAPSHOT"]])
+                          ])
 
 
 ;; ----------------------------------------
@@ -22,7 +22,6 @@
 (require '[tappit.producer :refer [with-tap! ok]])
 (require '[me.raynes.conch :as conch])
 (require '[me.raynes.conch.low-level :as sh])
-(require '[yoostan-lib.utils :as utils])
 
 ;; ----------------------------------------
 
@@ -34,6 +33,26 @@
         .getParentFile
         .getCanonicalPath)))
 
+(defn cmd-is-available
+  "Tests whether a UNIX shell command can be found."
+  [appname]
+  (conch/with-programs [which]
+    (let [res (which appname {:throw false
+                              :verbose true})]
+      (= 0 (deref (:exit-code res))))))
+
+(defn version-of-app-found
+  "Runs <command> <-version> and tests the output against a regex"
+  [r cmd p]
+  (conch/let-programs
+      [c cmd]
+
+    (let [res (c p {:throw false
+                    :verbose true})
+          exit-code (deref (:exit-code res))]
+      
+      (if (not= 0 exit-code) false
+          (boolean (re-find r (:stdout res)))))))
 
 ;; ----------------------------------------
 
@@ -46,13 +65,13 @@
   (diag! (str "working directory at: " work-dir))
 
   ;; ansible testing
-  (if (not (ok! (utils/cmd-is-available "ansible-playbook")
+  (if (not (ok! (cmd-is-available "ansible-playbook")
                 "ansible-is-installed"))
     (do
       (bail-out! "Ansible (ansible-playbook) has to be installed.")
       (System/exit 1))
-    (ok! (utils/version-of-app-found #"ansible-playbook 2\.1\..\.."
-                                     "ansible-playbook" "--version")
+    (ok! (version-of-app-found #"ansible-playbook 2\.1\..\.."
+                               "ansible-playbook" "--version")
          "correct-version-of-ansible"
          :diag "I only tested with ansible > 2.1.x.x"))
 
