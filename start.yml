@@ -5,5 +5,5 @@
       become: yes
       service:
         name: datomic
-        state: restarted
+        state: started
       
