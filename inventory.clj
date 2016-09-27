@@ -1,12 +1,12 @@
 #!/usr/bin/env boot
 
-(set-env! :dependencies '[[pieterbreed/yoostan-lib "0.0.1-SNAPSHOT"]
+(set-env! :dependencies '[[pieterbreed/ansible-inventory-clj "0.1.1"]
                           [environ "1.0.3"]
                           [org.clojure/data.json "0.2.6"]])
 
 ;; ----------------------------------------
 
-(require '[yoostan-lib.inventory :as yinv])
+(require '[ansible-inventory-clj.core :as yinv])
 (require '[environ.core :as env])
 (require '[clojure.data.json :as json])
 
@@ -15,10 +15,10 @@
 
 (let [vagrant-host ["vagrant" (env/env :houstan-hostname) 22]] 
   (as-> yinv/empty-inventory $
-    (yinv/target-> $ vagrant-host {"ansible_user" "vagrant"
-                                   "ansible_host" (env/env :houstan-hostname)})
+    (yinv/add-target $ vagrant-host {"ansible_user" "vagrant"
+                                   "ansible_host" (env/env :houstan-ip)})
 
-    (yinv/group-> $ "datomic-transactors" 
+    (yinv/add-group $ "datomic-transactors" 
                   {"datomic_transactor_properties"
                    {"protocol" "dev"
                     "host" "0.0.0.0"
@@ -31,7 +31,7 @@
                     "data-dir" "/var/lib/datomic"
                     "log-dir" "/var/log/datomic"
                     "pid-file" "/var/run/datomic/datomic_transactor.pid"}})
-    (yinv/target->group-> $ vagrant-host "datomic-transactors")
-    (yinv/inv->ansible--list $)
+    (yinv/add-target-to-group $ vagrant-host "datomic-transactors")
+    (yinv/make-ansible-list $)
     (json/write-str $)
     (println $)))
