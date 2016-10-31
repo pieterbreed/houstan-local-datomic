@@ -15,7 +15,10 @@
     datomic_log_path: '/var/log/datomic'
     datomic_pid_path: '/var/run/datomic'
     datomic_pid_file: '{{ datomic_pid_path }}/datomic_transactor.pid'
+    datomic_console_pid_file: '{{ datomic_pid_path }}/datomic_console.pid'
     datomic_systemd_service_file: '/etc/systemd/system/datomic.service'
+    datomic_console_systemd_service_file: '/etc/systemd/system/datomicconsole.service'
+    datomic_console_hostname: "{{ lookup('env', 'HOUSTAN_HOSTNAME') }}"
 
   tasks:
     - name: Set up the service account
@@ -84,6 +87,14 @@
       template:
         src: 'datomic.service.j2'
         dest: '{{ datomic_systemd_service_file }}'
+      notify:
+        - Reload systemd
+
+    - name: Configure the datomic console web app
+      become: yes
+      template:
+        src: 'datomic_console.service.j2'
+        dest: '{{ datomic_console_systemd_service_file }}'
       notify:
         - Reload systemd
 

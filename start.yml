@@ -7,3 +7,9 @@
         name: datomic
         state: started
       
+    - name: Restart datomic console
+      become: yes
+      service:
+        name: datomicconsole
+        state: started
+      
