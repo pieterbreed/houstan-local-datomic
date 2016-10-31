@@ -16,7 +16,7 @@
 (let [vagrant-host ["vagrant" (env/env :houstan-hostname) 22]] 
   (as-> yinv/empty-inventory $
     (yinv/add-target $ vagrant-host {"ansible_user" "vagrant"
-                                     "ansible_host" (env/env :houstan-hostname)})
+                                     "ansible_host" (env/env :houstan-ip)})
 
     (yinv/add-group $ "datomic-transactors" 
                     {"datomic_transactor_properties"
